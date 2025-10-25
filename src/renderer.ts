@@ -122,6 +122,7 @@ export class SpriteActorRenderer implements ActorRenderer {
 	private sprite?: Sprite;
 	private atlas?: AtlasData;
 	private pxPerUnit = 16; // world units → pixels
+	private currentAnim: number | null = null; // Track current animation hash
 
 	constructor(
 		private scene: Scene,
@@ -181,12 +182,14 @@ export class SpriteActorRenderer implements ActorRenderer {
 		const snapped = Math.round(x * this.pxPerUnit) / this.pxPerUnit;
 		this.sprite.position.x = snapped;
 
-		if (animHash !== undefined && this.atlas) {
+		// Only play animation if it changed
+		if (animHash !== undefined && this.atlas && animHash !== this.currentAnim) {
 			const name = this.findAnimNameByHash(animHash);
 			if (name) {
 				const a = this.atlas.anims[name];
 				if (a) {
 					this.sprite.playAnimation(a.from, a.to, a.loop, 1000 / a.fps);
+					this.currentAnim = animHash;
 				}
 			}
 		}

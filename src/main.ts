@@ -67,7 +67,9 @@ const keys = new KeyboardInput();
 const vmGlobal = new RhaiVM();
 await vmGlobal.initOnce();
 
-let vmSrc = txtRhai.value;
+const vmSrcResponse = await fetch("/scripts/sample.rhai");
+let vmSrc = await vmSrcResponse.text();
+txtRhai.value = vmSrc;
 vmGlobal.loadSource(vmSrc);
 
 let assetsDC: RTCDataChannel | undefined;

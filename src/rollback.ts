@@ -131,14 +131,6 @@ function step(
 		if (c.t === "move") vx1 = c.dx > 0 ? walk : c.dx < 0 ? -walk : 0; // move(0) stops
 		if (c.t === "anim") s.p1.anim = hashStr(c.name);
 	}
-	if (cmds1.length === 0) {
-		// Fallback: if script returned nothing, derive movement directly from inputs
-		const LEFT = 1 << 2;
-		const RIGHT = 1 << 3;
-		if (in1 & LEFT) vx1 = -walk;
-		else if (in1 & RIGHT) vx1 = walk;
-		else vx1 = 0; // no input → move(0)
-	}
 	if (cmds1.length)
 		log.debug("p1 cmds", { frame: nextFrame & 0xffff, cmds: cmds1 });
 	s.p1.vx = vx1;
@@ -150,13 +142,6 @@ function step(
 	for (const c of cmds2) {
 		if (c.t === "move") vx2 = c.dx > 0 ? walk : c.dx < 0 ? -walk : 0; // move(0) stops
 		if (c.t === "anim") s.p2.anim = hashStr(c.name);
-	}
-	if (cmds2.length === 0) {
-		const LEFT = 1 << 2;
-		const RIGHT = 1 << 3;
-		if (in2 & LEFT) vx2 = -walk;
-		else if (in2 & RIGHT) vx2 = walk;
-		else vx2 = 0; // no input → move(0)
 	}
 	if (cmds2.length)
 		log.debug("p2 cmds", { frame: nextFrame & 0xffff, cmds: cmds2 });

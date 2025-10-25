@@ -47,7 +47,7 @@ export class ViewerBJS {
 			"cam",
 			Math.PI / 2, // side view
 			Math.PI / 2.2, // slightly above
-			10, // further back to include both actors
+			15, // further back to include both actors
 			new Vector3(0, 1.0, 0),
 			this.scene,
 		);
