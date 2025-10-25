@@ -46,7 +46,9 @@ const btnOffer = getElement<HTMLButtonElement>("#btnOffer");
 const btnAnswer = getElement<HTMLButtonElement>("#btnAnswer");
 const btnSetRemote = getElement<HTMLButtonElement>("#btnSetRemote");
 const fileGlb = getElement<HTMLInputElement>("#fileGlb");
-const btnSendGlb = getElement<HTMLButtonElement>("#btnSendGlb");
+const filePng = getElement<HTMLInputElement>("#filePng");
+const fileAtlas = getElement<HTMLInputElement>("#fileAtlas");
+const btnSendAsset = getElement<HTMLButtonElement>("#btnSendAsset");
 const btnRunLocal = getElement<HTMLButtonElement>("#btnRunLocal");
 const btnSendScript = getElement<HTMLButtonElement>("#btnSendScript");
 const txtRhai = getElement<HTMLTextAreaElement>("#rhaiSrc");
@@ -151,12 +153,23 @@ function mountAssetsDC(dc: RTCDataChannel) {
 
 async function tryAssembleAndLoad(m: Manifest) {
 	lastManifest = m;
-	const entry = m.chunks[0];
-	const data = cas.get(entry.hash);
-	if (!data) return;
-	const blob = new Blob([data], { type: entry.mime || "model/gltf-binary" });
-	await viewer.loadGLBFromBlob(blob);
-	status("model loaded");
+	const type = m.type || "mesh";
+
+	if (type === "sprite") {
+		// Sprite: check PNG + Atlas JSON
+		const pngChunk = m.chunks.find((c) => c.mime === "image/png");
+		const atlasHash = m.meta?.atlas;
+		if (!pngChunk || !atlasHash) return;
+		if (!cas.has(pngChunk.hash) || !cas.has(atlasHash)) return;
+		await viewer.loadFromManifest(m, cas);
+		status("sprite loaded");
+	} else {
+		// Mesh: check entry chunk
+		const entry = m.chunks[0];
+		if (!cas.has(entry.hash)) return;
+		await viewer.loadFromManifest(m, cas);
+		status("mesh loaded");
+	}
 }
 
 async function streamChunks(hashes: string[], dc: RTCDataChannel) {
@@ -181,24 +194,74 @@ function waitDrain(dc: RTCDataChannel) {
 	});
 }
 
-// Send GLB button
-btnSendGlb.onclick = async () => {
+// Helper to get selected asset mode
+function getAssetMode(): "3d" | "2d" {
+	const radio = document.querySelector<HTMLInputElement>(
+		'input[name="assetMode"]:checked',
+	);
+	return (radio?.value as "3d" | "2d") || "3d";
+}
+
+// Send Asset button (handles both 3D and 2D)
+btnSendAsset.onclick = async () => {
 	if (!assetsDC || assetsDC.readyState !== "open") return;
-	const f = fileGlb.files?.[0];
-	if (!f) return;
-	const ab = await f.arrayBuffer();
-	const hash = await cas.hashOf(ab);
-	cas.put(hash, new Uint8Array(ab));
-	const m: Manifest = {
-		id: `char:${f.name}`,
-		entry: f.name,
-		chunks: [
-			{ hash, size: ab.byteLength, mime: f.type || "model/gltf-binary" },
-		],
-	};
-	assetsDC.send(encManifest(m));
-	lastManifest = m;
-	status("manifest sent");
+
+	const mode = getAssetMode();
+
+	if (mode === "3d") {
+		// Send 3D GLB
+		const f = fileGlb.files?.[0];
+		if (!f) return;
+		const ab = await f.arrayBuffer();
+		const hash = await cas.hashOf(ab);
+		cas.put(hash, new Uint8Array(ab));
+		const m: Manifest = {
+			id: `char:${f.name}`,
+			type: "mesh",
+			entry: f.name,
+			chunks: [
+				{ hash, size: ab.byteLength, mime: f.type || "model/gltf-binary" },
+			],
+		};
+		assetsDC.send(encManifest(m));
+		lastManifest = m;
+		status("3D manifest sent");
+	} else {
+		// Send 2D Sprite (PNG + Atlas JSON)
+		const pngFile = filePng.files?.[0];
+		const atlasFile = fileAtlas.files?.[0];
+		if (!pngFile || !atlasFile) {
+			status("Please select both PNG and Atlas files");
+			return;
+		}
+
+		const pngAb = await pngFile.arrayBuffer();
+		const atlasAb = await atlasFile.arrayBuffer();
+
+		const pngHash = await cas.hashOf(pngAb);
+		const atlasHash = await cas.hashOf(atlasAb);
+
+		cas.put(pngHash, new Uint8Array(pngAb));
+		cas.put(atlasHash, new Uint8Array(atlasAb));
+
+		const m: Manifest = {
+			id: `char:sprite:${pngFile.name}`,
+			type: "sprite",
+			entry: pngFile.name,
+			chunks: [
+				{ hash: pngHash, size: pngAb.byteLength, mime: "image/png" },
+				{
+					hash: atlasHash,
+					size: atlasAb.byteLength,
+					mime: "application/json",
+				},
+			],
+			meta: { atlas: atlasHash },
+		};
+		assetsDC.send(encManifest(m));
+		lastManifest = m;
+		status("2D sprite manifest sent");
+	}
 };
 
 // Script buttons
@@ -269,8 +332,8 @@ function loop(now: number) {
 		rb.setLocalInput(next, local);
 		sendInput(next, local);
 		const s = rb.simulateTo(next);
-		// Apply to viewer. For demo anim names are unknown, so we ignore anim hash.
-		viewer.applyState(s.p1.x, s.p2.x);
+		// Apply to viewer with animation hashes
+		viewer.applyState(s.p1.x, s.p2.x, s.p1.anim, s.p2.anim);
 		if ((s.frame & 0xf) === 0 && liveDC?.readyState === "open") {
 			const h = hashState(s);
 			liveDC.send(encStateHash(s.frame, h));

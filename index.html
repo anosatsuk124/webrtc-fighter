@@ -30,6 +30,16 @@
 				gap: 8px;
 				align-items: center;
 			}
+			.hidden {
+				display: none;
+			}
+			label {
+				cursor: pointer;
+				user-select: none;
+			}
+			.file-group {
+				margin: 8px 0;
+			}
 		</style>
 	</head>
 	<body>
@@ -47,29 +57,96 @@
 
 			<h3>Assets</h3>
 			<div class="row">
-				<input
-					type="file"
-					id="fileGlb"
-					accept=".glb,.gltf,model/gltf-binary"
-				/>
-				<button id="btnSendGlb">Send GLB</button>
+				<label><input type="radio" name="assetMode" value="3d" checked /> 3D (GLB)</label>
+				<label><input type="radio" name="assetMode" value="2d" /> 2D (Sprite)</label>
 			</div>
+
+			<div id="asset3d" class="file-group">
+				<input type="file" id="fileGlb" accept=".glb,.gltf,model/gltf-binary" />
+			</div>
+
+			<div id="asset2d" class="file-group hidden">
+				<label>PNG: <input type="file" id="filePng" accept=".png,image/png" /></label>
+				<br />
+				<label>Atlas: <input type="file" id="fileAtlas" accept=".json,application/json" /></label>
+			</div>
+
+			<button id="btnSendAsset">Send Asset</button>
 			<p>Status: <span id="status">idle</span></p>
 
 			<h3>Rhai Script</h3>
 			<textarea id="rhaiSrc">
-// Rhai demo using input bitmask. Bits: 0=Up 1=Down 2=Left 3=Right 4=LP
-fn tick(frame, input) {
-  let t = frame % 20;
-  let go_right = (input &amp; (1 &lt;&lt; 3)) != 0;
-  if go_right || t &lt; 10 {
-    move(1);
-    anim_play("Walk");
-  } else {
-    move(-1);
-    anim_play("Walk");
+// Sample fighter - Basic state machine with attacks
+const LEFT = 4;
+const RIGHT = 8;
+const LP = 16;  // A key
+const LK = 64;  // Z key
+
+if !is_def(state) {
+  state = "idle";
+  state_frame = 0;
+  last_attack_frame = -60;
+}
+
+fn tick(frame, input_mask) {
+  state_frame += 1;
+  let left = (input_mask &amp; LEFT) != 0;
+  let right = (input_mask &amp; RIGHT) != 0;
+  let punch = (input_mask &amp; LP) != 0;
+  let kick = (input_mask &amp; LK) != 0;
+  let can_attack = (frame - last_attack_frame) &gt; 20;
+
+  if state == "attacking" {
+    if state_frame &gt;= 10 {
+      state = "idle";
+      state_frame = 0;
+    }
+    return;
   }
-}</textarea
+
+  if can_attack {
+    if punch {
+      state = "attacking";
+      state_frame = 0;
+      last_attack_frame = frame;
+      anim_play("Punch");
+      return;
+    }
+    if kick {
+      state = "attacking";
+      state_frame = 0;
+      last_attack_frame = frame;
+      anim_play("Kick");
+      return;
+    }
+  }
+
+  let is_moving = false;
+  if left &amp;&amp; !right {
+    move(-1);
+    is_moving = true;
+  } else if right &amp;&amp; !left {
+    move(1);
+    is_moving = true;
+  } else {
+    move(0);
+  }
+
+  if is_moving {
+    if state != "walk" {
+      state = "walk";
+      state_frame = 0;
+      anim_play("Walk");
+    }
+  } else {
+    if state != "idle" {
+      state = "idle";
+      state_frame = 0;
+      anim_play("Idle");
+    }
+  }
+}
+</textarea
 			>
 			<div class="row">
 				<button id="btnRunLocal">Run locally</button>
@@ -80,5 +157,22 @@ fn tick(frame, input) {
 			<canvas id="view"></canvas>
 		</main>
 		<script type="module" src="/src/main.ts"></script>
+		<script>
+			// Toggle asset input based on mode selection
+			document.querySelectorAll('input[name="assetMode"]').forEach((radio) => {
+				radio.addEventListener("change", (e) => {
+					const mode = e.target.value;
+					const asset3d = document.getElementById("asset3d");
+					const asset2d = document.getElementById("asset2d");
+					if (mode === "3d") {
+						asset3d.classList.remove("hidden");
+						asset2d.classList.add("hidden");
+					} else {
+						asset3d.classList.add("hidden");
+						asset2d.classList.remove("hidden");
+					}
+				});
+			});
+		</script>
 	</body>
 </html>

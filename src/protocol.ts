@@ -11,8 +11,10 @@ export const MSG = {
 
 export type Manifest = {
 	id: string;
+	type?: "mesh" | "sprite"; // defaults to "mesh" if not specified
 	entry: string;
 	chunks: { hash: string; size: number; mime: string }[];
+	meta?: Record<string, string>; // e.g., { atlas: "sha256:..." } for sprites
 };
 
 export function encManifest(m: Manifest): ArrayBuffer {

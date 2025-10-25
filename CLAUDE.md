@@ -6,7 +6,11 @@ Run a browser-only 2D fighter stack: Babylon.js rendering, two WebRTC DataChanne
 
 ## Development Commands
 
-*To be added as the project structure is established*
+* `bun dev` - Start development server
+* `bun build` - Build both WASM and JS
+* `bun lint` - Run linter
+* `bun format` - Format code
+* `./scripts/build_sprite_atlas.sh` - Generate sprite atlas from spritesheets (requires ImageMagick)
 
 
 ## Architecture
@@ -18,6 +22,9 @@ Peer A <—SDP—> Peer B
 
 App
   ├─ Viewer (Babylon.js)  ← applies latest State
+  │   ├─ ActorRenderer (abstract)
+  │   │   ├─ MeshActorRenderer (GLB + ArcRotateCamera)
+  │   │   └─ SpriteActorRenderer (PNG Atlas + OrthographicCamera)
   ├─ Rollback engine      ← deterministic step, Rhai VM x2
   ├─ Rhai VM (WASM)       → returns command list ["move","anim"]
   ├─ CAS (sha256)         → chunk store
@@ -28,10 +35,23 @@ App
 
 Assets:
 
-* `0x01 Manifest`: JSON `{ id, entry, chunks:[{hash,size,mime}] }`
+* `0x01 Manifest`: JSON for mesh `{ id, entry, chunks:[{hash,size,mime}] }` or for sprite `{ id, type:"sprite", entry, chunks:[{hash,size,mime}], meta:{atlas:"sha256:..."} }`
 * `0x02 NeedChunks`: list of missing hashes
 * `0x03 Chunk`: `[hashLen+hash][offset:u32][payload]` (sample sends as one full chunk)
 * `0x20 ScriptPush`: `[nameLen+name][len:u32][rhaiSourceBytes]`
+
+Sprite Atlas JSON format:
+```json
+{
+  "cellWidth": 48,
+  "cellHeight": 64,
+  "anims": {
+    "Idle": {"from":0, "to":7, "fps":8, "loop":true},
+    "Walk": {"from":8, "to":27, "fps":12, "loop":true},
+    "Punch": {"from":28, "to":33, "fps":10, "loop":false}
+  }
+}
+```
 
 Live:
 
@@ -57,6 +77,28 @@ Live:
 * Fixed processing order: P1, then P2.
 * Same script + same inputs → same State.
 
+## Rhai Script API
+
+Scripts implement `fn tick(frame, input_mask)` called at 60Hz.
+
+**Available functions:**
+* `move(dx)` - Issue move command (dx: -1=left, 0=stop, 1=right)
+* `anim_play(name)` - Play animation ("Idle", "Walk", "Punch", "Kick", "Jump", etc.)
+
+**Input mask constants:**
+* `UP = 1`, `DOWN = 2`, `LEFT = 4`, `RIGHT = 8`
+* `LP = 16` (Light Punch, A key)
+* `HP = 32` (Heavy Punch, S key)
+* `LK = 64` (Light Kick, Z key)
+* `HK = 128` (Heavy Kick, X key)
+* `START = 256` (Enter key)
+
+**Check input:** `if (input_mask & LEFT) != 0 { ... }`
+
+**State persistence:** Use global variables - they persist across ticks via Rhai Scope.
+
+**Example:** See `public/scripts/sample_fighter.rhai`
+
 ## Implementation strategy
 
 * Input-only networking. Never send full state.
@@ -64,6 +106,22 @@ Live:
 * Keep at least 64 snapshots. Tune to `ceil(RTT99 / 16.7 ms) + margin`.
 * Apply script changes at frame boundaries by reinitializing the rollback VMs.
 * Keep rendering passive. Viewer just reflects State.
+
+## Rendering: Dual System (Mesh vs Sprite)
+
+* **ActorRenderer** abstraction: `{ load(...):Promise<void>; applyState(x, anim?):void }`
+  * `MeshActorRenderer` - existing GLB workflow
+  * `SpriteActorRenderer` - PNG + Atlas JSON
+* **Camera switching**:
+  * 3D: `ArcRotateCamera`
+  * 2D: `FreeCamera` with `ORTHOGRAPHIC_CAMERA` mode
+* **Sprite settings** for pixel-perfect:
+  * Sampling: `Texture.NEAREST_SAMPLINGMODE`
+  * Mipmaps: `false`
+  * Wrap: `CLAMP_ADDRESSMODE`
+  * Pixel snap: `Math.round(pos * pxPerUnit) / pxPerUnit`
+* **Animation mapping**: `anim_play("Walk")` in Rhai → 3D uses AnimationGroup name, 2D uses Atlas frame range
+* **State compatibility**: same State (x, anim) shared between 3D and 2D. Only rendering differs.
 
 ## Testing
 
