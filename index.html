@@ -55,17 +55,22 @@
 			<textarea id="remoteSdp"></textarea>
 			<div class="row"><button id="btnSetRemote">Set Remote</button></div>
 
-			<h3>Assets</h3>
+			<h3>Game</h3>
 			<div class="row">
-				<label><input type="radio" name="assetMode" value="3d" checked /> 3D (GLB)</label>
-				<label><input type="radio" name="assetMode" value="2d" /> 2D (Sprite)</label>
+				<button id="btnGameStart">Game Start</button>
 			</div>
 
-			<div id="asset3d" class="file-group">
+			<h3>Assets</h3>
+			<div class="row">
+				<label><input type="radio" name="assetMode" value="3d" /> 3D (GLB)</label>
+				<label><input type="radio" name="assetMode" value="2d" checked /> 2D (Sprite)</label>
+			</div>
+
+			<div id="asset3d" class="file-group hidden">
 				<input type="file" id="fileGlb" accept=".glb,.gltf,model/gltf-binary" />
 			</div>
 
-			<div id="asset2d" class="file-group hidden">
+			<div id="asset2d" class="file-group">
 				<label>PNG: <input type="file" id="filePng" accept=".png,image/png" /></label>
 				<br />
 				<label>Atlas: <input type="file" id="fileAtlas" accept=".json,application/json" /></label>
@@ -82,11 +87,10 @@ const RIGHT = 8;
 const LP = 16;  // A key
 const LK = 64;  // Z key
 
-if !is_def(state) {
-  state = "idle";
-  state_frame = 0;
-  last_attack_frame = -60;
-}
+// Persistent state (initialized at load; persists across ticks)
+let state = "idle";
+let state_frame = 0;
+let last_attack_frame = -60;
 
 fn tick(frame, input_mask) {
   state_frame += 1;

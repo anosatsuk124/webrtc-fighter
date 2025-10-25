@@ -8,10 +8,10 @@
 		"dev": "vite",
 		"build": "bun build:all",
 		"build:all": "bun build:wasm && bun build:js",
-		"build:js": "vite build",
+		"build:js": "tsc --noEmit && vite build",
 		"build:wasm": "cd wasm-rhai && ./build.sh",
-		"lint": "biome check .",
-		"format": "biome format --write ."
+		"lint": "biome check . && cd wasm-rhai && cargo clippy",
+		"format": "biome format --write . && cd wasm-rhai && cargo fmt"
 	},
 	"keywords": [],
 	"author": "",

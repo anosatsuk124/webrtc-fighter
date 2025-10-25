@@ -15,8 +15,28 @@ export type InputMask = number;
 export class KeyboardInput {
 	private keys = new Set<string>();
 	constructor() {
-		addEventListener("keydown", (e) => this.keys.add(e.code));
-		addEventListener("keyup", (e) => this.keys.delete(e.code));
+		const norm = (e: KeyboardEvent): string => {
+			// Prefer code; fallback to key→code mapping for letters/Enter/Space
+			if (e.code?.length) return e.code;
+			const k = e.key || "";
+			if (k.length === 1) {
+				const u = k.toUpperCase();
+				if (u >= "A" && u <= "Z") return `Key${u}`;
+			}
+			if (k === "Enter") return "Enter";
+			if (k === " " || k === "Spacebar") return "Space";
+			return k;
+		};
+
+		addEventListener("keydown", (e) => {
+			const c = norm(e);
+			// Prevent page scroll on arrows only; allow typing in textarea for letters
+			if (c.startsWith("Arrow")) e.preventDefault();
+			this.keys.add(c);
+		});
+		addEventListener("keyup", (e) => {
+			this.keys.delete(norm(e));
+		});
 		addEventListener("blur", () => this.keys.clear());
 		document.addEventListener("visibilitychange", () => {
 			if (document.hidden) this.keys.clear();

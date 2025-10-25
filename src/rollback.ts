@@ -1,5 +1,6 @@
 // Deterministic fixed-point sim + rollback.
 import type { InputMask } from "./input";
+import { createLogger } from "./logger";
 import type { RhaiVM } from "./vm_rhai";
 
 // 16.16 fixed-point helpers
@@ -12,6 +13,8 @@ const FP = {
 		return ((a * b) >> 16) | 0;
 	},
 };
+
+const log = createLogger("rollback");
 
 export interface Fighter {
 	x: number; // fixed-point
@@ -105,27 +108,44 @@ function step(
 	vm2: RhaiVM,
 ) {
 	const walk = FP.from(2.5);
-	const friction = FP.from(0.85);
 
 	// P1 from Rhai
-	const cmds1 = vm1.tick(s.frame + 1, in1);
+	const nextFrame = s.frame + 1;
+	const cmds1 = vm1.tick(nextFrame, in1);
 	let vx1 = s.p1.vx;
 	for (const c of cmds1) {
-		if (c.t === "move") vx1 = c.dx > 0 ? walk : c.dx < 0 ? -walk : vx1;
+		if (c.t === "move") vx1 = c.dx > 0 ? walk : c.dx < 0 ? -walk : 0; // move(0) stops
 		if (c.t === "anim") s.p1.anim = hashStr(c.name);
 	}
-	if (cmds1.length === 0) vx1 = FP.mul(vx1, friction);
+	if (cmds1.length === 0) {
+		// Fallback: if script returned nothing, derive movement directly from inputs
+		const LEFT = 1 << 2;
+		const RIGHT = 1 << 3;
+		if (in1 & LEFT) vx1 = -walk;
+		else if (in1 & RIGHT) vx1 = walk;
+		else vx1 = 0; // no input → move(0)
+	}
+	if (cmds1.length)
+		log.debug("p1 cmds", { frame: nextFrame & 0xffff, cmds: cmds1 });
 	s.p1.vx = vx1;
 	s.p1.x = (s.p1.x + vx1) | 0;
 
 	// P2 from Rhai
-	const cmds2 = vm2.tick(s.frame + 1, in2);
+	const cmds2 = vm2.tick(nextFrame, in2);
 	let vx2 = s.p2.vx;
 	for (const c of cmds2) {
-		if (c.t === "move") vx2 = c.dx > 0 ? walk : c.dx < 0 ? -walk : vx2;
+		if (c.t === "move") vx2 = c.dx > 0 ? walk : c.dx < 0 ? -walk : 0; // move(0) stops
 		if (c.t === "anim") s.p2.anim = hashStr(c.name);
 	}
-	if (cmds2.length === 0) vx2 = FP.mul(vx2, friction);
+	if (cmds2.length === 0) {
+		const LEFT = 1 << 2;
+		const RIGHT = 1 << 3;
+		if (in2 & LEFT) vx2 = -walk;
+		else if (in2 & RIGHT) vx2 = walk;
+		else vx2 = 0; // no input → move(0)
+	}
+	if (cmds2.length)
+		log.debug("p2 cmds", { frame: nextFrame & 0xffff, cmds: cmds2 });
 	s.p2.vx = vx2;
 	s.p2.x = (s.p2.x + vx2) | 0;
 

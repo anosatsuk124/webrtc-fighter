@@ -1,12 +1,8 @@
 // ActorRenderer abstraction for mesh (GLB) and sprite (PNG Atlas) rendering.
 
 import type { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
-import { Camera } from "@babylonjs/core/Cameras/camera";
-import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
-import { Color4 } from "@babylonjs/core/Maths/math.color";
-import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { Sprite } from "@babylonjs/core/Sprites/sprite";
@@ -62,8 +58,15 @@ export class MeshActorRenderer implements ActorRenderer {
 			}
 		}
 
-		// Load GLB
-		const result = await SceneLoader.ImportMeshAsync("", "", url, this.scene);
+		// Load GLB - force glTF plugin via extension hint for blob URLs
+		const result = await SceneLoader.ImportMeshAsync(
+			"",
+			"",
+			url,
+			this.scene,
+			undefined,
+			".glb",
+		);
 		this.anims = {};
 		for (const ag of this.scene.animationGroups) {
 			this.anims[ag.name] = ag;
@@ -119,11 +122,10 @@ export class SpriteActorRenderer implements ActorRenderer {
 	private sprite?: Sprite;
 	private atlas?: AtlasData;
 	private pxPerUnit = 16; // world units → pixels
-	private orthoCam?: FreeCamera;
 
 	constructor(
 		private scene: Scene,
-		private canvas: HTMLCanvasElement,
+		_canvas: HTMLCanvasElement,
 	) {}
 
 	async load(data: LoadData): Promise<void> {
@@ -149,6 +151,7 @@ export class SpriteActorRenderer implements ActorRenderer {
 		tex.wrapV = Texture.CLAMP_ADDRESSMODE;
 
 		// Create sprite manager with nearest sampling
+		if (!this.atlas) throw new Error("atlas not loaded");
 		const cellWidth = this.atlas.cellWidth;
 		const cellHeight = this.atlas.cellHeight;
 		this.manager = new SpriteManager(
@@ -167,30 +170,7 @@ export class SpriteActorRenderer implements ActorRenderer {
 		this.sprite.invertU = false;
 		this.sprite.invertV = false;
 
-		// Switch to orthographic camera for pixel-perfect rendering
-		if (!this.orthoCam) {
-			this.orthoCam = new FreeCamera(
-				"orthoCam",
-				new Vector3(0, 0, -10),
-				this.scene,
-			);
-			this.orthoCam.mode = Camera.ORTHOGRAPHIC_CAMERA;
-			this.fitOrtho();
-			addEventListener("resize", () => this.fitOrtho());
-			this.scene.activeCamera = this.orthoCam;
-			this.scene.clearColor = new Color4(0, 0, 0, 0);
-		}
-	}
-
-	private fitOrtho() {
-		if (!this.orthoCam) return;
-		const s = 1 / this.pxPerUnit; // 1 world unit = 1/pxPerUnit screen pixel
-		const w = this.canvas.clientWidth;
-		const h = this.canvas.clientHeight;
-		this.orthoCam.orthoLeft = (-w * 0.5 * s) / 1;
-		this.orthoCam.orthoRight = (w * 0.5 * s) / 1;
-		this.orthoCam.orthoTop = (h * 0.5 * s) / 1;
-		this.orthoCam.orthoBottom = (-h * 0.5 * s) / 1;
+		// Use viewer's active camera. No camera switching here.
 	}
 
 	applyState(xFixed16: number, animHash?: number): void {

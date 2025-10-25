@@ -5,6 +5,7 @@ export const MSG = {
 	Chunk: 0x03,
 	ScriptPush: 0x20,
 	ScriptAck: 0x21,
+	GameStart: 0x22,
 	Input: 0x10,
 	StateHash: 0x11,
 } as const;
@@ -111,6 +112,16 @@ export function decScriptPush(buf: ArrayBuffer) {
 	const len = dv.getUint32(2 + nl, true);
 	const bytes = u.subarray(6 + nl, 6 + nl + len);
 	return { name, bytes };
+}
+
+// Control: GameStart (no payload)
+export function encGameStart(): ArrayBuffer {
+	const buf = new ArrayBuffer(1);
+	new DataView(buf).setUint8(0, MSG.GameStart);
+	return buf;
+}
+export function isGameStart(buf: ArrayBuffer): boolean {
+	return new DataView(buf).getUint8(0) === MSG.GameStart;
 }
 
 // Live messages
