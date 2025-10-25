@@ -75,3 +75,4 @@ Live:
 ## Key Patterns and Conventions
 
 - Use English for all code comments and documentation.
+- Run `bun format` `bun lint` and `bun build` after any code changes.
