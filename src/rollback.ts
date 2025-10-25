@@ -16,6 +16,18 @@ const FP = {
 
 const log = createLogger("rollback");
 
+// Flip LEFT and RIGHT input bits when players cross positions
+const LEFT = 4;
+const RIGHT = 8;
+function flipInputLR(mask: InputMask): InputMask {
+	const hasLeft = (mask & LEFT) !== 0;
+	const hasRight = (mask & RIGHT) !== 0;
+	let flipped = mask & ~(LEFT | RIGHT); // Clear both bits
+	if (hasLeft) flipped |= RIGHT; // Swap LEFT → RIGHT
+	if (hasRight) flipped |= LEFT; // Swap RIGHT → LEFT
+	return flipped;
+}
+
 export interface Fighter {
 	x: number; // fixed-point
 	vx: number; // fixed-point per tick
@@ -123,9 +135,17 @@ function step(
 ) {
 	const walk = FP.from(0.25);
 
+	// Check if players have crossed (P1 is on the right side)
+	const positionsCrossed = s.p1.x > s.p2.x;
+
+	// Flip inputs if positions are crossed so that controls remain intuitive
+	// When P1 is on the right, they face left, so LEFT should move them left (toward opponent)
+	const effectiveIn1 = positionsCrossed ? flipInputLR(in1) : in1;
+	const effectiveIn2 = positionsCrossed ? flipInputLR(in2) : in2;
+
 	// P1 from Rhai
 	const nextFrame = s.frame + 1;
-	const cmds1 = vm1.tick(nextFrame, in1);
+	const cmds1 = vm1.tick(nextFrame, effectiveIn1);
 	let vx1 = s.p1.vx;
 	for (const c of cmds1) {
 		if (c.t === "move") vx1 = c.dx > 0 ? walk : c.dx < 0 ? -walk : 0; // move(0) stops
@@ -137,7 +157,7 @@ function step(
 	s.p1.x = (s.p1.x + vx1) | 0;
 
 	// P2 from Rhai
-	const cmds2 = vm2.tick(nextFrame, in2);
+	const cmds2 = vm2.tick(nextFrame, effectiveIn2);
 	let vx2 = s.p2.vx;
 	for (const c of cmds2) {
 		if (c.t === "move") vx2 = c.dx > 0 ? walk : c.dx < 0 ? -walk : 0; // move(0) stops

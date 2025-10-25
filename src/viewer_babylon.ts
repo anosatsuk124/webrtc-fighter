@@ -137,7 +137,13 @@ export class ViewerBJS {
 		anim1Hash?: number,
 		anim2Hash?: number,
 	): void {
-		if (this.renderer1) this.renderer1.applyState(x1, anim1Hash);
-		if (this.renderer2) this.renderer2.applyState(x2, anim2Hash);
+		// Determine facing direction: characters always face toward their opponent
+		// P1 on the left (x1 < x2) → P1 faces right (false), P2 faces left (true)
+		// P1 on the right (x1 > x2) → P1 faces left (true), P2 faces right (false)
+		const p1FacesLeft = x1 > x2;
+		const p2FacesLeft = x1 < x2;
+
+		if (this.renderer1) this.renderer1.applyState(x1, anim1Hash, p1FacesLeft);
+		if (this.renderer2) this.renderer2.applyState(x2, anim2Hash, p2FacesLeft);
 	}
 }

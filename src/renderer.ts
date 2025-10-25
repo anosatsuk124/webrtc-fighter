@@ -22,7 +22,7 @@ export function hashAnimName(str: string): number {
 // ActorRenderer abstraction
 export interface ActorRenderer {
 	load(data: LoadData): Promise<void>;
-	applyState(xFixed16: number, animHash?: number): void;
+	applyState(xFixed16: number, animHash?: number, facingLeft?: boolean): void;
 }
 
 export type LoadData =
@@ -79,9 +79,12 @@ export class MeshActorRenderer implements ActorRenderer {
 		}
 	}
 
-	applyState(xFixed16: number, animHash?: number): void {
+	applyState(xFixed16: number, animHash?: number, facingLeft?: boolean): void {
 		// Convert 16.16 fixed to world units
 		this.root.position.x = xFixed16 / (1 << 16);
+
+		// Apply rotation based on facing direction
+		this.root.rotation.y = facingLeft ? Math.PI : 0;
 
 		if (animHash !== undefined) {
 			// Find anim by name hash
@@ -174,13 +177,16 @@ export class SpriteActorRenderer implements ActorRenderer {
 		// Use viewer's active camera. No camera switching here.
 	}
 
-	applyState(xFixed16: number, animHash?: number): void {
+	applyState(xFixed16: number, animHash?: number, facingLeft?: boolean): void {
 		if (!this.sprite) return;
 
 		// Pixel snap
 		const x = xFixed16 / (1 << 16);
 		const snapped = Math.round(x * this.pxPerUnit) / this.pxPerUnit;
 		this.sprite.position.x = snapped;
+
+		// Apply horizontal flip based on facing direction
+		this.sprite.invertU = facingLeft ?? false;
 
 		// Only play animation if it changed
 		if (animHash !== undefined && this.atlas && animHash !== this.currentAnim) {
