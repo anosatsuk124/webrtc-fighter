@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>Babylon Rollback Minimal</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<style>
+			body {
+				margin: 0;
+				display: grid;
+				grid-template-columns: 360px 1fr;
+				height: 100vh;
+				font-family: system-ui;
+			}
+			aside {
+				padding: 12px;
+				overflow: auto;
+				border-right: 1px solid #ddd;
+			}
+			canvas {
+				width: 100%;
+				height: 100%;
+			}
+			textarea {
+				width: 100%;
+				height: 120px;
+			}
+			.row {
+				display: flex;
+				gap: 8px;
+				align-items: center;
+			}
+		</style>
+	</head>
+	<body>
+		<aside>
+			<h3>Signaling</h3>
+			<div class="row">
+				<button id="btnOffer">Create Offer</button>
+				<button id="btnAnswer">Create Answer</button>
+			</div>
+			<p>Local SDP</p>
+			<textarea id="localSdp" readonly></textarea>
+			<p>Remote SDP</p>
+			<textarea id="remoteSdp"></textarea>
+			<div class="row"><button id="btnSetRemote">Set Remote</button></div>
+
+			<h3>Assets</h3>
+			<div class="row">
+				<input
+					type="file"
+					id="fileGlb"
+					accept=".glb,.gltf,model/gltf-binary"
+				/>
+				<button id="btnSendGlb">Send GLB</button>
+			</div>
+			<p>Status: <span id="status">idle</span></p>
+
+			<h3>Rhai Script</h3>
+			<textarea id="rhaiSrc">
+// Rhai demo using input bitmask. Bits: 0=Up 1=Down 2=Left 3=Right 4=LP
+fn tick(frame, input) {
+  let t = frame % 20;
+  let go_right = (input &amp; (1 &lt;&lt; 3)) != 0;
+  if go_right || t &lt; 10 {
+    move(1);
+    anim_play("Walk");
+  } else {
+    move(-1);
+    anim_play("Walk");
+  }
+}</textarea
+			>
+			<div class="row">
+				<button id="btnRunLocal">Run locally</button>
+				<button id="btnSendScript">Send to peer</button>
+			</div>
+		</aside>
+		<main>
+			<canvas id="view"></canvas>
+		</main>
+		<script type="module" src="/src/main.ts"></script>
+	</body>
+</html>

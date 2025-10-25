@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+bun.lockb
+
+# Build outputs
+dist/
+wasm-rhai/target/
+wasm-rhai/pkg/
+
+# Environment variables
+.env
+.env.local
+

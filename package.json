@@ -1,0 +1,31 @@
+{
+	"name": "webrtc-fighter",
+	"version": "1.0.0",
+	"description": "",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "bun build:all",
+		"build:all": "bun build:wasm && bun build:js",
+		"build:js": "vite build",
+		"build:wasm": "cd wasm-rhai && ./build.sh",
+		"lint": "biome check .",
+		"format": "biome format --write ."
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"dependencies": {
+		"@babylonjs/core": "^8.33.2",
+		"@babylonjs/loaders": "^8.33.2"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.3.0",
+		"@eslint/js": "^9.38.0",
+		"eslint": "^9.38.0",
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.46.2",
+		"vite": "^7.1.12"
+	}
+}
