@@ -6,12 +6,19 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
-		"build": "bun build:all",
-		"build:all": "bun build:wasm && bun build:js",
+		"build": "bun run build:all",
+		"build:all": "bun run build:wasm && bun run build:js",
 		"build:js": "tsc --noEmit && vite build",
 		"build:wasm": "cd wasm-rhai && ./build.sh",
-		"lint": "biome check . && cd wasm-rhai && cargo clippy",
-		"format": "biome format --write . && cd wasm-rhai && cargo fmt"
+		"lint": "bun run lint:ts && bun run lint:rust",
+		"lint:ts": "biome check .",
+		"lint:rust": "cd wasm-rhai && cargo clippy",
+		"format": "bun run format:ts && bun run format:rust",
+		"format:ts": "biome format --write .",
+		"format:rust": "cd wasm-rhai && cargo fmt",
+		"fix": "bun run fix:ts && bun run fix:rust",
+		"fix:ts": "biome check . --write --unsafe",
+		"fix:rust": "cd wasm-rhai && cargo fix --allow-dirty --allow-staged"
 	},
 	"keywords": [],
 	"author": "",

@@ -6,7 +6,6 @@ import { Engine } from "@babylonjs/core/Engines/engine";
 import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/loaders/glTF";
@@ -66,7 +65,6 @@ export class ViewerBJS {
 		new HemisphericLight("h", new Vector3(0, 1, 0), this.scene);
 		const d = new DirectionalLight("d", new Vector3(-1, -2, -1), this.scene);
 		d.position = new Vector3(3, 6, 3);
-		MeshBuilder.CreateGround("g", { width: 30, height: 30 }, this.scene);
 		this.root1.position = new Vector3(-1, 0, 0);
 		this.root2.position = new Vector3(1, 0, 0);
 

@@ -73,6 +73,9 @@ vmGlobal.loadSource(vmSrc);
 let assetsDC: RTCDataChannel | undefined;
 let liveDC: RTCDataChannel | undefined;
 
+// Player role determined by WebRTC connection order
+let playerRole: 1 | 2 | undefined;
+
 // Game start gating
 let gameStarted = false;
 let hasAssetsLoaded = false;
@@ -94,6 +97,7 @@ onRemoteDataChannel(ch, (dc) => {
 
 btnOffer.onclick = async () => {
 	log.info("Create Offer clicked");
+	playerRole = 1; // Offerer is Player 1
 	const offer = await createOffer(ch);
 	// As the offerer, we created our own data channels. Mount them now.
 	if (ch.assets) {
@@ -117,6 +121,7 @@ btnOffer.onclick = async () => {
 };
 btnAnswer.onclick = async () => {
 	log.info("Create Answer clicked");
+	playerRole = 2; // Answerer is Player 2
 	ch.pc.ondatachannel = (e) => {
 		if (e.channel.label === "assets") {
 			assetsDC = e.channel;
@@ -412,7 +417,7 @@ function makeRollback(): Rollback {
 		v.loadSource(vmSrc);
 		return v;
 	};
-	return new Rollback(seed, vmFactory);
+	return new Rollback(seed, vmFactory, playerRole ?? 1);
 }
 function resetRollbackWithScript() {
 	rb = makeRollback();

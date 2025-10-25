@@ -52,19 +52,33 @@ export class Rollback {
 	private latest = 0;
 	private vm1: RhaiVM;
 	private vm2: RhaiVM;
+	private localPlayerNumber: 1 | 2;
 
-	constructor(seedState: State, vmFactory: () => RhaiVM) {
+	constructor(
+		seedState: State,
+		vmFactory: () => RhaiVM,
+		localPlayerNumber: 1 | 2 = 1,
+	) {
 		this.hist[seedState.frame % this.hist.length] = structuredClone(seedState);
 		this.latest = seedState.frame;
 		this.vm1 = vmFactory(); // same script loaded into each
 		this.vm2 = vmFactory();
+		this.localPlayerNumber = localPlayerNumber;
 	}
 
 	setLocalInput(f: number, m: InputMask) {
-		this.in1[f & 0xffff] = m;
+		if (this.localPlayerNumber === 1) {
+			this.in1[f & 0xffff] = m;
+		} else {
+			this.in2[f & 0xffff] = m;
+		}
 	}
 	setRemoteInput(f: number, m: InputMask) {
-		this.in2[f & 0xffff] = m;
+		if (this.localPlayerNumber === 1) {
+			this.in2[f & 0xffff] = m;
+		} else {
+			this.in1[f & 0xffff] = m;
+		}
 	}
 
 	getLatest(): State {
@@ -107,7 +121,7 @@ function step(
 	vm1: RhaiVM,
 	vm2: RhaiVM,
 ) {
-	const walk = FP.from(2.5);
+	const walk = FP.from(0.25);
 
 	// P1 from Rhai
 	const nextFrame = s.frame + 1;
