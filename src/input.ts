@@ -14,6 +14,8 @@ export type InputMask = number;
 
 export class KeyboardInput {
 	private keys = new Set<string>();
+	private invertLR = false; // locally invert Left/Right mapping for debugging or accessibility
+
 	constructor() {
 		const norm = (e: KeyboardEvent): string => {
 			// Prefer code; fallback to key→code mapping for letters/Enter/Space
@@ -42,12 +44,31 @@ export class KeyboardInput {
 			if (document.hidden) this.keys.clear();
 		});
 	}
+
+	// Toggle local LR inversion at runtime
+	setInvertLR(v: boolean) {
+		this.invertLR = v;
+	}
+	getInvertLR(): boolean {
+		return this.invertLR;
+	}
+
 	snapshot(): InputMask {
 		let m = 0;
-		if (this.keys.has("ArrowUp")) m |= Btn.Up;
-		if (this.keys.has("ArrowDown")) m |= Btn.Down;
-		if (this.keys.has("ArrowLeft")) m |= Btn.Left;
-		if (this.keys.has("ArrowRight")) m |= Btn.Right;
+		const up = this.keys.has("ArrowUp");
+		const down = this.keys.has("ArrowDown");
+		let left = this.keys.has("ArrowLeft");
+		let right = this.keys.has("ArrowRight");
+		if (this.invertLR) {
+			// swap
+			const tmp = left;
+			left = right;
+			right = tmp;
+		}
+		if (up) m |= Btn.Up;
+		if (down) m |= Btn.Down;
+		if (left) m |= Btn.Left;
+		if (right) m |= Btn.Right;
 		if (this.keys.has("KeyA")) m |= Btn.LP;
 		if (this.keys.has("KeyS")) m |= Btn.HP;
 		if (this.keys.has("KeyZ")) m |= Btn.LK;

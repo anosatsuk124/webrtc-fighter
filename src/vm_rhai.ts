@@ -2,7 +2,11 @@
 import initWasm, * as wasm from "../wasm-rhai/pkg/wasm_rhai.js";
 import { createLogger } from "./logger";
 
-export type Cmd = { t: "move"; dx: number } | { t: "anim"; name: string };
+export type Cmd =
+	| { t: "move"; dx: number }
+	| { t: "anim"; name: string }
+	| { t: "hitbox"; active: boolean }
+	| { t: "hurtbox"; active: boolean };
 
 interface WasmRhaiModule {
 	load_script_source(src: string): boolean;

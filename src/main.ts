@@ -17,7 +17,13 @@ import {
 	type Manifest,
 	MSG,
 } from "./protocol";
-import { hashState, Rollback, type State } from "./rollback";
+import {
+	type CollisionBox,
+	hashState,
+	hashStr,
+	Rollback,
+	type State,
+} from "./rollback";
 import { ViewerBJS } from "./viewer_babylon";
 import { RhaiVM } from "./vm_rhai";
 import {
@@ -58,6 +64,8 @@ const btnSendAsset = getElement<HTMLButtonElement>("#btnSendAsset");
 const btnRunLocal = getElement<HTMLButtonElement>("#btnRunLocal");
 const btnSendScript = getElement<HTMLButtonElement>("#btnSendScript");
 const btnGameStart = getElement<HTMLButtonElement>("#btnGameStart");
+const chkShowCollision = getElement<HTMLInputElement>("#chkShowCollision");
+const chkInvertLR = getElement<HTMLInputElement>("#chkInvertLR");
 const txtRhai = getElement<HTMLTextAreaElement>("#rhaiSrc");
 const canvas = getElement<HTMLCanvasElement>("#view");
 
@@ -71,6 +79,43 @@ const vmSrcResponse = await fetch("/scripts/sample.rhai");
 let vmSrc = await vmSrcResponse.text();
 txtRhai.value = vmSrc;
 vmGlobal.loadSource(vmSrc);
+
+// Cache collision data to persist across Rollback resets
+let cachedCollisionData: Record<
+	string,
+	{ hitboxes?: CollisionBox[]; hurtboxes?: CollisionBox[] }
+> | null = null;
+
+// Convert atlas anim hit/hurt boxes from top-left pixel space to centered offsets
+function convertAtlasCollision(
+	anims: Record<
+		string,
+		{ hitboxes?: CollisionBox[]; hurtboxes?: CollisionBox[] }
+	>,
+	cellWidth: number,
+	cellHeight: number,
+): Record<string, { hitboxes?: CollisionBox[]; hurtboxes?: CollisionBox[] }> {
+	const out: Record<
+		string,
+		{ hitboxes?: CollisionBox[]; hurtboxes?: CollisionBox[] }
+	> = {};
+	for (const [name, cfg] of Object.entries(anims)) {
+		const conv = (arr?: CollisionBox[]) =>
+			arr?.map((b) => ({
+				// center X: right positive
+				x: (b.x - cellWidth / 2) | 0,
+				// center Y: up positive
+				y: (cellHeight / 2 - b.y) | 0,
+				width: b.width,
+				height: b.height,
+			}));
+		out[name] = {
+			hitboxes: conv(cfg.hitboxes),
+			hurtboxes: conv(cfg.hurtboxes),
+		};
+	}
+	return out;
+}
 
 let assetsDC: RTCDataChannel | undefined;
 let liveDC: RTCDataChannel | undefined;
@@ -100,6 +145,8 @@ onRemoteDataChannel(ch, (dc) => {
 btnOffer.onclick = async () => {
 	log.info("Create Offer clicked");
 	playerRole = 1; // Offerer is Player 1
+	// Ensure rollback uses correct local player number
+	resetRollbackWithScript();
 	const offer = await createOffer(ch);
 	// As the offerer, we created our own data channels. Mount them now.
 	if (ch.assets) {
@@ -124,6 +171,8 @@ btnOffer.onclick = async () => {
 btnAnswer.onclick = async () => {
 	log.info("Create Answer clicked");
 	playerRole = 2; // Answerer is Player 2
+	// Ensure rollback uses correct local player number
+	resetRollbackWithScript();
 	ch.pc.ondatachannel = (e) => {
 		if (e.channel.label === "assets") {
 			assetsDC = e.channel;
@@ -219,6 +268,26 @@ async function tryAssembleAndLoad(m: Manifest) {
 		if (!cas.has(pngChunk.hash) || !cas.has(atlasHash)) return;
 		try {
 			await viewer.loadFromManifest(m, cas);
+
+			// Load collision data into rollback and cache it
+			const atlasData = cas.get(atlasHash);
+			if (atlasData) {
+				const atlasText = new TextDecoder().decode(atlasData);
+				const atlasJson = JSON.parse(atlasText);
+				if (atlasJson.anims) {
+					const cw = atlasJson.cellWidth ?? 96;
+					const ch = atlasJson.cellHeight ?? 63;
+					const converted = convertAtlasCollision(atlasJson.anims, cw, ch);
+					// Cache collision data globally (converted)
+					cachedCollisionData = converted;
+					// Load into current rollback instance (converted)
+					rb.loadCollisionData(converted);
+					log.info("Collision data loaded and cached", {
+						animCount: Object.keys(atlasJson.anims).length,
+					});
+				}
+			}
+
 			status("sprite loaded");
 			log.info("Sprite loaded", { id: m.id });
 			hasAssetsLoaded = true;
@@ -378,6 +447,18 @@ async function sendSelectedAsset() {
 	}
 }
 
+// Collision box visualization toggle
+chkShowCollision.onchange = () => {
+	viewer.setShowCollisionBoxes(chkShowCollision.checked);
+	log.info("Collision boxes", { show: chkShowCollision.checked });
+};
+
+// Local-only: invert LR mapping for this client
+chkInvertLR.onchange = () => {
+	keys.setInvertLR(chkInvertLR.checked);
+	log.info("Invert LR (local)", { invert: chkInvertLR.checked });
+};
+
 // Game Start: send asset + script, then arm simulation locally
 btnGameStart.onclick = async () => {
 	log.info("Game Start clicked");
@@ -410,8 +491,22 @@ function makeRollback(): Rollback {
 	const seed: State = {
 		frame: 0,
 		// Spawn near the origin so camera frames both actors
-		p1: { x: -1 << 16, vx: 0, hp: 100, anim: 0 },
-		p2: { x: 1 << 16, vx: 0, hp: 100, anim: 0 },
+		p1: {
+			x: -4 << 16,
+			vx: 0,
+			hp: 100,
+			anim: hashStr("Idle"), // Set initial animation to Idle
+			hitboxActive: false,
+			hurtboxActive: true,
+		},
+		p2: {
+			x: 4 << 16,
+			vx: 0,
+			hp: 100,
+			anim: hashStr("Idle"), // Set initial animation to Idle
+			hitboxActive: false,
+			hurtboxActive: true,
+		},
 	};
 	// VM factory: independent instances with same script
 	const vmFactory = () => {
@@ -419,7 +514,17 @@ function makeRollback(): Rollback {
 		v.loadSource(vmSrc);
 		return v;
 	};
-	return new Rollback(seed, vmFactory, playerRole ?? 1);
+	const newRb = new Rollback(seed, vmFactory, playerRole ?? 1);
+
+	// Restore cached collision data if available
+	if (cachedCollisionData) {
+		newRb.loadCollisionData(cachedCollisionData);
+		log.info("Restored collision data to new Rollback instance", {
+			animCount: Object.keys(cachedCollisionData).length,
+		});
+	}
+
+	return newRb;
 }
 function resetRollbackWithScript() {
 	rb = makeRollback();
@@ -464,14 +569,30 @@ function loop(now: number) {
 			acc = 0; // avoid runaway accumulation while waiting
 			break;
 		}
-		const next = (rb.getLatest().frame + 1) & 0xffff;
+		const prev = rb.getLatest();
+		const next = (prev.frame + 1) & 0xffff;
 		const local = keys.snapshot();
 		rb.setLocalInput(next, local);
 		// Send input only if live channel is open
 		if (liveDC && liveDC.readyState === "open") sendInput(next, local);
 		const s = rb.simulateTo(next);
-		// Apply to viewer with animation hashes
-		viewer.applyState(s.p1.x, s.p2.x, s.p1.anim, s.p2.anim);
+		// Get collision boxes for visualization
+		const collisionBoxes = rb.getCollisionBoxes(s);
+
+		// Debug log collision boxes every 60 frames (~1 second)
+		if ((s.frame & 0x3f) === 0) {
+			log.debug("[Main Loop] Collision boxes", {
+				frame: s.frame,
+				showCollision: chkShowCollision.checked,
+				p1Hitboxes: collisionBoxes.p1Hitboxes?.length || 0,
+				p1Hurtboxes: collisionBoxes.p1Hurtboxes?.length || 0,
+				p2Hitboxes: collisionBoxes.p2Hitboxes?.length || 0,
+				p2Hurtboxes: collisionBoxes.p2Hurtboxes?.length || 0,
+			});
+		}
+
+		// Apply to viewer with animation hashes and collision boxes
+		viewer.applyState(s.p1.x, s.p2.x, s.p1.anim, s.p2.anim, collisionBoxes);
 		// Lightweight debug pulse: show frame/mask/pos every ~1s
 		if ((s.frame & 0x3f) === 0) {
 			status(`f=${s.frame} m=${local} x=${(s.p1.x / (1 << 16)).toFixed(2)}`);

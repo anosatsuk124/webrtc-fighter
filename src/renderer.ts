@@ -84,6 +84,9 @@ export class MeshActorRenderer implements ActorRenderer {
 		this.root.position.x = xFixed16 / (1 << 16);
 
 		// Apply rotation based on facing direction
+		// Note: Assets are authored facing left by default.
+		// Camera is viewing from -X direction, so facing directions are inverted.
+		// Facing left => rotate 180deg, facing right => no rotation.
 		this.root.rotation.y = facingLeft ? Math.PI : 0;
 
 		if (animHash !== undefined) {
@@ -186,6 +189,9 @@ export class SpriteActorRenderer implements ActorRenderer {
 		this.sprite.position.x = snapped;
 
 		// Apply horizontal flip based on facing direction
+		// Sprites are authored facing left by default.
+		// Camera is viewing from -X direction, so facing directions are inverted.
+		// Facing left => flip, facing right => no flip.
 		this.sprite.invertU = facingLeft ?? false;
 
 		// Only play animation if it changed

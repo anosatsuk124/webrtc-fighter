@@ -10,6 +10,10 @@ enum Cmd {
     Move { dx: i64 },
     #[serde(rename = "anim")]
     Anim { name: String },
+    #[serde(rename = "hitbox")]
+    Hitbox { active: bool },
+    #[serde(rename = "hurtbox")]
+    Hurtbox { active: bool },
 }
 
 thread_local! {
@@ -35,6 +39,12 @@ fn setup_engine() -> Engine {
                 name: name.to_string(),
             })
         });
+    });
+    eng.register_fn("set_hitbox", |active: bool| {
+        CMDS.with(|c| c.borrow_mut().push(Cmd::Hitbox { active }));
+    });
+    eng.register_fn("set_hurtbox", |active: bool| {
+        CMDS.with(|c| c.borrow_mut().push(Cmd::Hurtbox { active }));
     });
     eng.set_max_operations(50_000);
     eng
